@@ -5,71 +5,77 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-
-contract SponsorToken is ERC20, Ownable {
-    constructor(address initialOwner) ERC20("SponsorToken", "SPT") Ownable(initialOwner) {}
-
-    function mint(address to, uint256 amount) public onlyOwner {
-        _mint(to, amount);
-    }
-
-    function burn(address from, uint256 amount) public onlyOwner {
-        _burn(from, amount);
-    }
-}
-
-contract StudentToken is ERC20, Ownable {
-    constructor(address initialOwner) ERC20("StudentToken", "STT") Ownable(initialOwner) {}
-
-    function mint(address to, uint256 amount) public onlyOwner {
-        _mint(to, amount);
-    }
-
-    function burn(address from, uint256 amount) public onlyOwner {
-        _burn(from, amount);
-    }
-}
+import "./IncomeVerifier.sol";
+import "./AaveLiquidityManager.sol";
+import "./LoanTermsManager.sol";
 
 contract EduLoanXMain is Ownable, Pausable, ReentrancyGuard {
     SponsorToken public sponsorToken;
     StudentToken public studentToken;
+    IncomeVerifier public incomeVerifier;
+    AaveLiquidityManager public aaveLiquidityManager;
+    LoanTermsManager public loanTermsManager;
 
-     struct Loan {
+    struct Loan {
         uint256 amount;
         uint256 interestRate;
         uint256 dueDate;
         uint256 paidAmount;
         bool isApproved;
-        bool isFullyRepaid;          
+        bool isFullyRepaid;
+        uint256 termId;
     }
 
     mapping(address => Loan) public loans;
     mapping(address => bool) public approvedSponsors;
 
-    event LoanRequested(address indexed student, uint256 amount);
+    event LoanRequested(address indexed student, uint256 amount, uint256 termId);
     event LoanApproved(address indexed student, uint256 amount);
     event LoanRepayment(address indexed student, uint256 amount);
     event SponsorApproved(address indexed sponsor);
     event SponsorRemoved(address indexed sponsor);
 
-    constructor(address _sponsorToken, address _studentToken, address initialOwner) Ownable(initialOwner) {
+    constructor(
+        address _sponsorToken,
+        address _studentToken,
+        address _incomeVerifier,
+        address _aaveLiquidityManager,
+        address _loanTermsManager,
+        address initialOwner
+    ) Ownable(initialOwner) {
         sponsorToken = SponsorToken(_sponsorToken);
         studentToken = StudentToken(_studentToken);
+        incomeVerifier = IncomeVerifier(_incomeVerifier);
+        aaveLiquidityManager = AaveLiquidityManager(_aaveLiquidityManager);
+        loanTermsManager = LoanTermsManager(_loanTermsManager);
     }
 
-    function requestLoan(uint256 amount, uint256 interestRate, uint256 durationInDays) public whenNotPaused {
+    function requestLoan(uint256 amount, uint256 termId) public whenNotPaused {
         require(loans[msg.sender].amount == 0, "Existing loan must be repaid first");
-        loans[msg.sender] = Loan(amount, interestRate, block.timestamp + (durationInDays * 1 days), 0, false, false);
-        emit LoanRequested(msg.sender, amount);
+        LoanTermsManager.LoanTerm memory term = loanTermsManager.getLoanTerm(termId);
+        require(amount >= term.minAmount && amount <= term.maxAmount, "Loan amount out of range");
+        
+        loans[msg.sender] = Loan(
+            amount,
+            term.interestRate,
+            block.timestamp + term.maxDuration,
+            0,
+            false,
+            false,
+            termId
+        );
+        emit LoanRequested(msg.sender, amount, termId);
     }
 
     function approveLoan(address student) public onlyOwner {
         Loan storage loan = loans[student];
         require(!loan.isApproved, "Loan already approved");
         require(loan.amount > 0, "No loan request found");
+        require(incomeVerifier.isIncomeAboveThreshold(int(loan.amount)), "Income verification failed");
         
         loan.isApproved = true;
         studentToken.mint(student, loan.amount);
+        aaveLiquidityManager.withdraw(loan.amount);
         emit LoanApproved(student, loan.amount);
     }
 
@@ -90,7 +96,7 @@ contract EduLoanXMain is Ownable, Pausable, ReentrancyGuard {
         }
 
         studentToken.burn(msg.sender, actualRepayment);
-        sponsorToken.mint(owner(), actualRepayment);
+        aaveLiquidityManager.deposit(actualRepayment);
 
         if (repaymentAmount > actualRepayment) {
             payable(msg.sender).transfer(repaymentAmount - actualRepayment);
