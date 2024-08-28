@@ -226,7 +226,7 @@ export const ConfigureMint = ({ w0 }) => {
                 : "bg-transparent"
             }`}
           >
-            Delegate Viewer
+            Beneficiaries
           </Button>
           <Button
             onClick={() => setActive("decrypt")}

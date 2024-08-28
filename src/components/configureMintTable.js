@@ -77,11 +77,11 @@ export function ConfigureMintTable() {
     },
     {
       accessorKey: "mintFee",
-      header: () => "Mint Fee",
+      header: () => "Allow Loan",
       cell: ({ row }) => {
         return (
           <>
-            <p>{row.getValue("mintFee") + " " + "INCO"}</p>
+            <p>{row.getValue("mintFee") + " " + "ETH"}</p>
           </>
         );
       },

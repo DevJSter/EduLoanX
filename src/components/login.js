@@ -51,28 +51,9 @@ export default function Login() {
             </div>
           </div>
           <p className="text-muted-foreground w-full flex items-center justify-start">
-            *This is a POC for showcasing .
+            *This is a POC for showcasing the Education Loan using Aave network.
           </p>
         </div>
-        {/* <div className="flex items-center gap-3.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="bg-white px-3 py-2 rounded-lg border capitalize">
-              {selectedUser || "Select User"}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              value={selectedUser}
-              onValueChange={setSelectedUser}
-            >
-              <DropdownMenuItem onSelect={() => setSelectedUser("admin")}>
-                Admin
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setSelectedUser("beneficiary")}>
-                Beneficiary
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={handleLogin}>Connect Wallet</Button>
-        </div> */}
       </main>
     </div>
   );
